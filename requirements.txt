@@ -1,3 +1,3 @@
-fastapi[all]
-aiohttp
-uvicorn
+fastapi[all]==0.115.6
+aiohttp==3.11.11
+uvicorn==0.34.0
