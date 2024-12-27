@@ -15,6 +15,8 @@ type Temperature = tuple[float, str]
 class ApiClient:
     def __init__(self):
         self.app_id = os.getenv("OPENWEATHER_APP_ID")
+        if not self.app_id:
+            raise ValueError("OPENWEATHER_APP_ID environment variable should be set before running the service")
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -62,14 +64,3 @@ class ApiClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
-
-
-if __name__ == "__main__":
-    async def run():
-        async with ApiClient() as client:
-            coords_model = await client.get_coordinates("London")
-            weather = await client.get_weather((coords_model.city_lat, coords_model.city_lon))
-            print(weather)
-
-    asyncio.run(run())
-
