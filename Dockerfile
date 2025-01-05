@@ -1,12 +1,15 @@
 FROM python:3.12-slim
 
-WORKDIR /usr/src/weather
+RUN apt-get update; apt-get install -y --no-install-recommends make; \
+	rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
+WORKDIR /app
+
+COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
+COPY weather /app/weather
+COPY Makefile /app/
 
-ARG OPENWEATHER_APP_ID
-ENV OPENWEATHER_APP_ID=$OPENWEATHER_APP_ID
-
-ENTRYPOINT [ "uvicorn", "weather.main:app", "--host", "0.0.0.0", "--port", "8881", "--log-level", "debug" ]
+ENTRYPOINT []
+# CMD ["uvicorn", "weather.main:app", "--host", "0.0.0.0", "--port", "8881", "--log-level", "debug"]
+CMD ["make", "run"]
