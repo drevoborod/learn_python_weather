@@ -1,32 +1,36 @@
-from fastapi import APIRouter, Request, status
-from fastapi.responses import JSONResponse
+from typing import Annotated, Literal
 
-from weather.clients import ApiClient
-from weather.models import ErrorResponse, WeatherResponse
+from fastapi import APIRouter, status, Depends
+
+from weather.clients import OpenweatherApiClient, Coordinates
+from weather.config import load_from_env
+from weather.models import Error, Weather
 
 
 router = APIRouter()
 
 
+async def openweather_client(city: str, units: Literal["metric", "imperial"] = "metric") -> Weather:
+    config = load_from_env()
+    client = OpenweatherApiClient(app_id=config.openweather_app_id, base_url=config.openweather_base_url)
+    try:
+        city = await client.get_city_by_name(city)
+        temperature = await client.get_weather(Coordinates(longitude=city.lon, latitude=city.lat), units=units)
+        yield Weather(
+            city=city,
+            temperature=temperature,
+        )
+    finally:
+        await client.close()
+
+
 @router.get(
     "/weather/",
-    response_model=WeatherResponse,
-    responses={status.HTTP_400_BAD_REQUEST: {"model": ErrorResponse}},
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"model": Error},
+        status.HTTP_404_NOT_FOUND: {"model": Error},
+    },
     summary="Get current temperature in specific city",
 )
-async def weather(request: Request, city: str, units: str = "metric"):
-    async with ApiClient() as client:
-        coords_model = await client.get_coordinates(city)
-        if isinstance(coords_model, ErrorResponse):
-            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=coords_model.model_dump())
-        weather_data = await client.get_weather((coords_model.city_lat, coords_model.city_lon), units=units)
-        if isinstance(weather_data, ErrorResponse):
-            return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=coords_model.model_dump())
-        return WeatherResponse(
-            current_temperature=weather_data[0],
-            measurement_units=weather_data[1],
-            city_name=coords_model.city_name,
-            city_country=coords_model.city_country,
-            city_lat=coords_model.city_lat,
-            city_lon=coords_model.city_lon,
-        )
+async def weather(params: Annotated[Weather, Depends(openweather_client)]) -> Weather:
+    return params

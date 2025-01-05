@@ -1,66 +1,64 @@
-import asyncio
-import os
-from http import HTTPStatus
+from dataclasses import dataclass
 from typing import Literal
 
-import aiohttp
+from fastapi import HTTPException, status
+import httpx
+from httpx import HTTPStatusError, Response
 
-from weather.models import GeoInfo, ErrorResponse
-
-
-type Coordinates = tuple[float, float]
-type Temperature = tuple[float, str]
+from weather.models import City, Temperature, Error
 
 
-class ApiClient:
-    def __init__(self):
-        self.app_id = os.getenv("OPENWEATHER_APP_ID")
-        if not self.app_id:
-            raise ValueError("OPENWEATHER_APP_ID environment variable should be set before running the service")
+@dataclass
+class Coordinates:
+    latitude: float
+    longitude: float
 
-    async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
-        return self
 
-    async def _get(self, url: str, params: dict) -> dict | list | ErrorResponse:
-        params["appid"] = self.app_id
-        async with self.session.get(url=url, params=params) as response:
-            if response.status != HTTPStatus.OK:
-                return ErrorResponse(message=f"Request to {url} had status {response.status}.\n"
-                                             f"Raw contents: {await response.text()}")
-            return await response.json()
+class OpenweatherApiClient:
+    def __init__(self, app_id: str, base_url: str):
+        self.app_id = app_id
+        self.client = httpx.AsyncClient(base_url=base_url)
 
-    async def get_coordinates(self, city_name: str) -> GeoInfo | ErrorResponse:
-        response = await self._get(
-            "http://api.openweathermap.org/geo/1.0/direct",
-            {"q": city_name},
+    async def get_city_by_name(self, city_name: str) -> City:
+        response = await self.client.get(
+            "/geo/1.0/direct",
+            params={"q": city_name, "appid": self.app_id},
         )
-        if isinstance(response, ErrorResponse):
-            return response
-        if not response:
-            return ErrorResponse(message=f"City '{city_name}' has not been found")
-
-        data = GeoInfo(
-            city_name=response[0]["name"],
-            city_country=response[0]["country"],
-            city_lat=response[0]["lat"],
-            city_lon=response[0]["lon"],
+        self._handle_openweather_api_error(response)
+        response_body = response.json()
+        if not response_body:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=Error(message=f"City '{city_name}' not found").model_dump())
+        return City(
+            name=response_body[0]["name"],
+            country=response_body[0]["country"],
+            lat=response_body[0]["lat"],
+            lon=response_body[0]["lon"],
         )
-        return data
-
 
     async def get_weather(
             self, coordinates: Coordinates, units: Literal["metric", "imperial"] = "metric"
-    ) -> Temperature | ErrorResponse:
-        response = await self._get(
-            "https://api.openweathermap.org/data/2.5/weather",
-            {"lat": coordinates[0], "lon": coordinates[1], "units": units},
+    ) -> Temperature:
+        response = await self.client.get(
+            "/data/2.5/weather",
+            params={"lat": coordinates.latitude, "lon": coordinates.longitude, "units": units, "appid": self.app_id},
         )
-        if isinstance(response, ErrorResponse):
-            return response
-        return response["main"]["temp"], "Celsius" if units == "metric" else "Fahrenheit"
+        self._handle_openweather_api_error(response)
+        response_body = response.json()
+        return Temperature(
+            value=response_body["main"]["temp"],
+            measurement_units="Celsius" if units == "metric" else "Fahrenheit"
+        )
 
+    def _handle_openweather_api_error(self, response: Response):
+        try:
+            response.raise_for_status()
+        except HTTPStatusError as err:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=Error(message=err.response.text).model_dump(),
+            )
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
+    async def close(self):
+        await self.client.aclose()
