@@ -14,10 +14,10 @@ async def openweather_client(city: str, units: Literal["metric", "imperial"] = "
     config = load_from_env()
     client = OpenweatherApiClient(app_id=config.openweather_app_id, base_url=config.openweather_base_url)
     try:
-        city = await client.get_city_by_name(city)
-        temperature = await client.get_weather(Coordinates(longitude=city.lon, latitude=city.lat), units=units)
+        city_info = await client.get_city_by_name(city)
+        temperature = await client.get_weather(Coordinates(longitude=city_info.lon, latitude=city_info.lat), units=units)
         yield Weather(
-            city=city,
+            city=city_info,
             temperature=temperature,
         )
     finally:

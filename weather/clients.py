@@ -15,14 +15,13 @@ class Coordinates:
 
 
 class OpenweatherApiClient:
-    def __init__(self, app_id: str, base_url: str):
-        self.app_id = app_id
-        self.client = httpx.AsyncClient(base_url=base_url)
+    def __init__(self, app_id: str, base_url: str) -> None:
+        self.client = httpx.AsyncClient(base_url=base_url, params={"appid": app_id})
 
     async def get_city_by_name(self, city_name: str) -> City:
         response = await self.client.get(
             "/geo/1.0/direct",
-            params={"q": city_name, "appid": self.app_id},
+            params={"q": city_name},
         )
         self._handle_openweather_api_error(response)
         response_body = response.json()
@@ -42,7 +41,7 @@ class OpenweatherApiClient:
     ) -> Temperature:
         response = await self.client.get(
             "/data/2.5/weather",
-            params={"lat": coordinates.latitude, "lon": coordinates.longitude, "units": units, "appid": self.app_id},
+            params={"lat": coordinates.latitude, "lon": coordinates.longitude, "units": units},
         )
         self._handle_openweather_api_error(response)
         response_body = response.json()
@@ -60,5 +59,5 @@ class OpenweatherApiClient:
                 detail=Error(message=err.response.text).model_dump(),
             )
 
-    async def close(self):
+    async def close(self) -> None:
         await self.client.aclose()
