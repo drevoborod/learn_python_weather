@@ -11,5 +11,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "anyio>=4.7.0",
     "mypy>=1.14.1",
+    "pytest>=8.3.4",
 ]
