@@ -10,16 +10,11 @@ from weather.models import Error, Weather
 router = APIRouter()
 
 
-async def openweather_client(city: str, units: Literal["metric", "imperial"] = "metric") -> Weather:
+async def openweather_client() -> OpenweatherApiClient:
     config = load_from_env()
     client = OpenweatherApiClient(app_id=config.openweather_app_id, base_url=config.openweather_base_url)
     try:
-        city_info = await client.get_city_by_name(city)
-        temperature = await client.get_weather(Coordinates(longitude=city_info.lon, latitude=city_info.lat), units=units)
-        yield Weather(
-            city=city_info,
-            temperature=temperature,
-        )
+        yield client
     finally:
         await client.close()
 
@@ -32,5 +27,14 @@ async def openweather_client(city: str, units: Literal["metric", "imperial"] = "
     },
     summary="Get current temperature in specific city",
 )
-async def weather(params: Annotated[Weather, Depends(openweather_client)]) -> Weather:
-    return params
+async def weather(
+        client: Annotated[Weather, Depends(openweather_client)],
+        city: str,
+        units: Literal["metric", "imperial"] = "metric"
+) -> Weather:
+    city_info = await client.get_city_by_name(city)
+    temperature = await client.get_weather(Coordinates(longitude=city_info.lon, latitude=city_info.lat), units=units)
+    return Weather(
+        city=city_info,
+        temperature=temperature,
+    )
