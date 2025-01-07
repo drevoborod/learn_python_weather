@@ -28,7 +28,7 @@ async def openweather_client() -> OpenweatherApiClient:
     summary="Get current temperature in specific city",
 )
 async def weather(
-        client: Annotated[Weather, Depends(openweather_client)],
+        client: Annotated[OpenweatherApiClient, Depends(openweather_client)],
         city: str,
         units: Literal["metric", "imperial"] = "metric"
 ) -> Weather:
