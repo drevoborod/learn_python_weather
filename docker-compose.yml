@@ -1,0 +1,7 @@
+services:
+  weather:
+    build: .
+    environment:
+      - OPENWEATHER_APP_ID=${OPENWEATHER_APP_ID}
+    ports:
+      - "8881:8881"
